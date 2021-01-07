@@ -5,8 +5,8 @@
 #include <string>
 #include <sstream>
 
-constexpr int width = 300;
-constexpr int height = 300;
+constexpr int width = 1000;
+constexpr int height = 1000;
 
 const TGAColor white =  { 255 , 255 , 255 , 255};
 const TGAColor red = { 255 , 0 , 0 , 255};
@@ -52,20 +52,22 @@ void read_obj(TGAImage &image) {
         while(std::getline(buffer,current_line)) {
             if (current_line.rfind("v ",0) == 0) {
                 std::istringstream stream_line(current_line.c_str());
-                double coord[2];
+                double coord[3];
                 char trash;
-                for(int i = 0 ; i < 3 ; i ++) { // change to 4 here to read also Z
+               
+                for(int i = 0 ; i < 4 ; i ++) { // change to 4 here to read also Z
                   if(i == 0)  {
                       stream_line >> trash; // removing first element
                   } else {
                       stream_line >> coord[i - 1];
                   }
-                  Point p;
-                  p.x = coord[0];
-                  p.y = coord[1];
-                  coordinates.push_back(p);
                 }
-                std::cout << std::endl;
+                Point p;
+                p.x = coord[0];
+                p.y = coord[1];
+
+                image.set(coord[0] * 100 + 500, coord[1] * 100 + 500, red);
+                coordinates.push_back(p);
             }
         }
     } else {
@@ -75,13 +77,14 @@ void read_obj(TGAImage &image) {
     for(int i = 0 ; i < coordinates.size() ; i ++) {
         Point p = coordinates.at(i);
         std::cout <<  "P: x:" << p.x << ", y:" << p.y << std::endl;
-        image.set((p.x+0.5) * 300, (p.y+0.5) * 300, red);
+
     }
 
 }
 int main() {
     TGAImage image(width, height, TGAImage::RGB);
     read_obj(image);
+    //image.flip_vertically();
     image.write_tga_file("framebuffer.tga");
     return 0;
 }
