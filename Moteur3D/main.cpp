@@ -75,13 +75,12 @@ void read_obj(TGAImage &image) {
     for(int i = 0 ; i < coordinates.size() ; i ++) {
         Point p = coordinates.at(i);
         std::cout <<  "P: x:" << p.x << ", y:" << p.y << std::endl;
-        image.set(p.x * 150, p.y * 150, red);
+        image.set((p.x+0.5) * 300, (p.y+0.5) * 300, red);
     }
 
 }
 int main() {
     TGAImage image(width, height, TGAImage::RGB);
-    line(30,20,60,90,image, white);
     read_obj(image);
     image.write_tga_file("framebuffer.tga");
     return 0;
