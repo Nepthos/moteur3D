@@ -2,6 +2,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <sstream>
 
 constexpr int width = 100;
 constexpr int height = 100;
@@ -47,7 +48,20 @@ void read_obj() {
     if(buffer) {
         std::string current_line;
         while(std::getline(buffer,current_line)) {
-            std::cout << current_line << std::endl;
+            if (current_line.rfind("v ",0) == 0) {
+                std::istringstream stream_line(current_line.c_str());
+                double coords[3];
+                char trash;
+                for(int i = 0 ; i < 4 ; i ++) {
+                  if(i == 0)  {
+                      stream_line >> trash; // removing first element
+                  } else {
+                      stream_line >> coords[i - 1];
+                      std::cout << i << ":" << coords[i - 1] << " ";
+                  }
+                }
+                std::cout << std::endl;
+            }
         }
     } else {
         std::cout << "Cannot open file at " << fileName << std::endl;
