@@ -1,5 +1,7 @@
 #include "tgaimage.h"
 #include <iostream>
+#include <fstream>
+#include <string>
 
 constexpr int width = 100;
 constexpr int height = 100;
@@ -37,9 +39,25 @@ void line(int x0, int y0, int x1, int y1, TGAImage &image, TGAColor color) {
     }
 }
 
+
+void read_obj() {
+    std::string const fileName("../obj/african_head/african_head.obj");
+    std::ifstream buffer(fileName.c_str());
+
+    if(buffer) {
+        std::string current_line;
+        while(std::getline(buffer,current_line)) {
+            std::cout << current_line << std::endl;
+        }
+    } else {
+        std::cout << "Cannot open file at " << fileName << std::endl;
+    }
+
+}
 int main() {
     TGAImage image(width, height, TGAImage::RGB);
     line(30,20,60,90,image, white);
     image.write_tga_file("framebuffer.tga");
+    read_obj();
     return 0;
 }
