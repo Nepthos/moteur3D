@@ -8,9 +8,15 @@
 
 class Point {
 public:
-    double x;
-    double y;
-    double z;
+    int x;
+    int y;
+    int z;
+    Point();
+    Point(int px, int py, int pz) {
+        x = px;
+        y = py;
+        z = pz;
+    }
 };
 
 
