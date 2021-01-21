@@ -17,12 +17,6 @@ public:
         y = py;
         z = pz;
     }
-
-    void normalise() {
-        x = std::sqrt(x * x);
-        y = std::sqrt(y * y);
-        z = std::sqrt(z * z);
-    }
 };
 
 
