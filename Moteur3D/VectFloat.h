@@ -17,6 +17,24 @@ public:
         y = py;
         z = pz;
     }
+
+    /*
+     * Get the norm of the vector
+     */
+    float norm() {
+        return std::sqrt(x * x + y * y + z * z);
+    }
+
+    /*
+     * Normalize the vector
+     */
+    void normalize() {
+        float norm = this->norm();
+        x /= norm;
+        y /= norm;
+        z /= norm;
+    }
+
 };
 
 
