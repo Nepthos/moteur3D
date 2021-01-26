@@ -61,14 +61,14 @@ VectInt getCorner(VectInt p1, VectInt p2, VectInt p3, bool top) {
     return corner;
 }
 
-// cross product value for three vectors
-int crossProduct(VectInt p1, VectInt p2, VectInt p3) {
+// determinant value for three vectors using x and y coords
+int determinant(VectInt p1, VectInt p2, VectInt p3) {
     return (p1.x - p3.x) * (p2.y - p3.y) - (p1.y - p3.y) * (p2.x - p3.x);
 }
 
 
 // cross product vector of two vectors
-VectFloat crossProductVectD(VectFloat p1, VectFloat p2) {
+VectFloat crossProduct(VectFloat p1, VectFloat p2) {
     VectFloat vect;
     vect.x = p1.y * p2.z - p1.z * p2.y;
     vect.y = p1.z * p2.x - p1.x * p2.z;
@@ -87,9 +87,9 @@ float dotProduct(VectFloat p1, VectFloat p2) {
 // if the cross products are all positive, or all negative, we are inside the triangle
 // otherwise if some are positive and some are not we are not inside of the triangle
 bool VectIntInTriangle(VectInt p1, VectInt p2, VectInt p3, VectInt test) {
-    int v1 = crossProduct(test, p1, p2);
-    int v2 = crossProduct(test, p2, p3);
-    int v3 = crossProduct(test, p3, p1);
+    int v1 = determinant(test, p1, p2);
+    int v2 = determinant(test, p2, p3);
+    int v3 = determinant(test, p3, p1);
     return (v1 <= 0 && v2 <= 0 && v3 <= 0) || (v1 >= 0 && v2 >= 0 && v3 >= 0); // check with equals to avoid dead pixels on boundaries when drawing
 }
 
@@ -164,7 +164,7 @@ void drawFacets(std::vector<VectInt> coordinates, std::vector<int> facets, TGAIm
         VectFloat light(0, 0, 1);
         VectFloat AB(p2d.x - p1d.x, p2d.y - p1d.y, p2d.z - p1d.z);
         VectFloat AC(p3d.x - p1d.x, p3d.y - p1d.y, p3d.z - p1d.z);
-        VectFloat norm = crossProductVectD(AB, AC);
+        VectFloat norm = crossProduct(AB, AC);
         //std::cout << "Norm vector before : x" << norm.x << ", y" << norm.y << ", z" << norm.z << std::endl; // debug normalization
         norm.normalize();
         //std::cout << "Norm vector : x" << norm.x << ", y" << norm.y << ", z" << norm.z << std::endl; // debug normalization
