@@ -76,6 +76,7 @@ VectFloat crossProduct(VectFloat p1, VectFloat p2) {
     return vect;
 }
 
+
 float dotProduct(VectFloat p1, VectFloat p2) {
     return p1.x * p2.x + p1.y * p2.y + p1.z * p2.z;
 }
@@ -93,10 +94,22 @@ bool VectIntInTriangle(VectInt p1, VectInt p2, VectInt p3, VectInt test) {
     return (v1 <= 0 && v2 <= 0 && v3 <= 0) || (v1 >= 0 && v2 >= 0 && v3 >= 0); // check with equals to avoid dead pixels on boundaries when drawing
 }
 
-// TODO fixme this is centroid, not barycenter
-// unused method for now, might be used when working with Z
-// barycentric coordinates of triangle
-VectInt barycenter(VectInt p1, VectInt p2, VectInt p3) {
+
+// barycentric coordinates between triangle and given point
+VectFloat barycentric(VectInt p1, VectInt p2, VectInt p3, VectInt test) {
+    VectFloat AB(p2.x - p1.x, p2.y - p1.y, p2.z - p1.z);
+    VectFloat AC(p3.x - p1.x, p3.y - p1.y, p3.z - p1.z);
+    VectFloat AP(test.x - p1.x, test.y - p1.y, test.z - p1.z);
+
+    float lambda3 = crossProduct(AB,AP).z / crossProduct(AB,AC).z;
+    float lambda2 = crossProduct(AP,AC).z / crossProduct(AB,AC).z;
+    float lambda1 = 1.f -lambda2-lambda3;
+
+    return {lambda1,lambda2,lambda3};
+}
+
+// centroid of triangle
+VectInt centroid(VectInt p1, VectInt p2, VectInt p3) {
     VectInt barycenter;
     barycenter.x = (p1.x + p2.x + p3.x) / 3;
     barycenter.y = (p1.y + p2.y + p3.x) / 3;
@@ -112,9 +125,11 @@ void fillTriangle(VectInt p1, VectInt p2, VectInt p3, TGAImage &image, TGAColor 
     VectInt bottomLeft = getCorner(p1,p2,p3, false);
     VectInt topRight = getCorner(p1,p2,p3,true);
 
+
     // iterating over the square
     for(int x = bottomLeft.x ; x <= topRight.x ; x++) {
         for(int y = bottomLeft.y ; y <= topRight.y ; y++) {
+
             // get the current VectInt
             VectInt current;
             current.x = x;
@@ -123,6 +138,8 @@ void fillTriangle(VectInt p1, VectInt p2, VectInt p3, TGAImage &image, TGAColor 
             if(VectIntInTriangle(p1,p2,p3,current)) {
                 image.set(x,y,color);
             }
+
+
         }
     }
 }
