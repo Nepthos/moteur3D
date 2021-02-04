@@ -13,11 +13,7 @@ public:
     int y;
     int z;
     VectInt();
-    VectInt(int px, int py, int pz) {
-        x = px;
-        y = py;
-        z = pz;
-    }
+    VectInt(int px, int py, int pz);
 };
 
 
