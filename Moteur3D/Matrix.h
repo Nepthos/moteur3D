@@ -5,9 +5,10 @@
 #ifndef MOTEUR3D_MATRIX_H
 #define MOTEUR3D_MATRIX_H
 
-
+#include "VectFloat.h"
 #include <vector>
 #include <iostream>
+class VectFloat;
 
 class Matrix {
 
@@ -19,6 +20,7 @@ public:
     int lines; // number of lines
     int cols; // number of columns
     Matrix(int nb_lines, int nb_cols); // default constructor
+    Matrix(int nb_tot); // identity matrix
 
     // Basic stuff
     std::vector<float> get_col(int idx); // get the idx column of the matrix
@@ -26,6 +28,8 @@ public:
     float get_at(int line, int col); // get the value at the given indexes in the matrix
     void set_at(int line, int col, float value); // sets the value at the given indexes in the matrix
     void print(); // prints the matrix
+
+    VectFloat getVect(int idx); // gets the vector on the idx column of the matrix (usually the first)
 
     // Matrix operations
     Matrix transpose(); // transpose the matrix

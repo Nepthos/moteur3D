@@ -19,6 +19,18 @@ Matrix::Matrix(int nb_lines, int nb_cols) {
     }
 }
 
+Matrix::Matrix(int nb_tot) {
+    lines = cols = nb_tot;
+    for(int i = 0 ; i < nb_tot ; i ++) {
+        std::vector<float> line;
+        for(int j = 0 ; j < nb_tot ; j ++) {
+            if(i==j) line.push_back(1.0f); // if same col and line, push 1 to create diagonal of identity matrix
+            else line.push_back(0.0f); // else 0
+        }
+        matrix.push_back(line);
+        line.clear();
+    }
+}
 // get a column of the matrix
 std::vector<float> Matrix::get_col(int idx) {
     check_indexes(0,idx);
@@ -66,6 +78,11 @@ void Matrix::print() {
     }
 }
 
+VectFloat Matrix::getVect(int idx) {
+    check_indexes(3, idx);
+    return {matrix.at(0).at(idx), matrix.at(1).at(idx), matrix.at(2).at(idx)};
+}
+
 Matrix Matrix::transpose() {
     Matrix transposed(cols,lines);
     for(int i = 0 ; i < matrix.size() ; i ++) {
@@ -85,10 +102,29 @@ Matrix Matrix::invert() {
     std::cerr << "Not implemented yet" << std::endl;
     exit(-1);
 }
+/*
+ * (
+ *
+ *
+ */
 
 
 Matrix Matrix::operator*(Matrix e) {
-    std::cerr << "Not implemented yet" << std::endl;
-    exit(-1);
-    return Matrix(0, 0);
+    Matrix new_mat(lines, e.cols);
+    if(cols == e.lines) {
+     for(int line = 0 ; line < lines ; line++) {
+         for(int col = 0 ; col < e.cols ; col++) {
+             float value = 0.f;
+             for(int curr_col = 0 ; curr_col < cols ; curr_col++) {
+                 value += matrix.at(line).at(curr_col) *  e.get_at(curr_col,col);
+             }
+             new_mat.set_at(line,col, value);
+         }
+     }
+    } else {
+        std::cerr << "Cannot multiply matrix with not the same number of lines and cols" << std::endl;
+        exit(-1);
+    }
+   // new_mat.print();
+    return new_mat;
 }

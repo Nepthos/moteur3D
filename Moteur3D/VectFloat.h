@@ -5,6 +5,8 @@
 #ifndef MOTEUR3D_VECTFLOAT_H
 #define MOTEUR3D_VECTFLOAT_H
 #include <cmath>
+#include "Matrix.h"
+class Matrix;
 
 class VectFloat {
 public:
@@ -17,6 +19,9 @@ public:
     float norm();
     void normalize();
     float operator[](int idx);
+    VectFloat divide(float value);
+    Matrix getMatrix();
+    void print();
 
 };
 

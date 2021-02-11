@@ -1,6 +1,7 @@
 #include "tgaimage.h"
 #include "VectInt.h"
 #include "VectFloat.h"
+#include "Matrix.h"
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -10,6 +11,7 @@
 
 constexpr int width = 1000;
 constexpr int height = 1000;
+
 
 const TGAColor white =  { 255 , 255 , 255 , 255};
 const TGAColor red = { 255 , 0 , 0 , 255};
@@ -84,8 +86,8 @@ float dotProduct(VectFloat p1, VectFloat p2) {
 
 // method used to check if a given vertice test is in the triangle represented by
 // the vertices p1 p2 and p3
-// we make the cross product of 2 vertices of the triangle and our test vertice
-// if the cross products are all positive, or all negative, we are inside the triangle
+// we get the determinant of 2 vertices of the triangle and our test vertice
+// if the determinants are all positive, or all negative, we are inside the triangle
 // otherwise if some are positive and some are not we are not inside of the triangle
 bool VectIntInTriangle(VectInt p1, VectInt p2, VectInt p3, VectInt test) {
     int v1 = determinant(test, p1, p2);
@@ -108,19 +110,26 @@ VectFloat barycentric(VectInt p1, VectInt p2, VectInt p3, VectInt test) {
     return {lambda1,lambda2,lambda3};
 }
 
-// centroid of triangle
-VectInt centroid(VectInt p1, VectInt p2, VectInt p3) {
-    VectInt barycenter;
-    barycenter.x = (p1.x + p2.x + p3.x) / 3;
-    barycenter.y = (p1.y + p2.y + p3.x) / 3;
-    barycenter.z = (p1.z + p2.z + p3.x) / 3;
-    return barycenter;
-}
 
 /*
  * Method used to draw a filled triangle
  */
-void fillTriangle(VectInt p1, VectInt p2, VectInt p3, TGAImage &image, float* zbuffer, TGAImage &texture, VectFloat vt1, VectFloat vt2, VectFloat vt3,VectFloat p1d, VectFloat p2d, VectFloat p3d) {
+void fillTriangle(TGAImage &image, float* zbuffer, TGAImage &texture, VectFloat vt1, VectFloat vt2, VectFloat vt3,VectFloat p1d, VectFloat p2d, VectFloat p3d) {
+
+    VectFloat camera(0,0,1); // camera
+    Matrix identity(4); // projection matrix
+    identity.set_at(3,2,-1.f/camera.z);
+    // multiply projection matrix with the real points
+    Matrix p1m = identity * p1d.getMatrix();
+    Matrix p2m = identity * p2d.getMatrix();
+    Matrix p3m = identity * p3d.getMatrix();
+
+    // creating new points from the projection matrix
+    VectInt p1(p1m.getVect(0).divide(p1m.get_at(3,0)), width);
+    VectInt p2(p2m.getVect(0).divide(p2m.get_at(3,0)), width);
+    VectInt p3(p3m.getVect(0).divide(p3m.get_at(3,0)), width);
+
+
     // creating a square starting by the bottom left VectInt to the top right VectInt of the triangle
     VectInt bottomLeft = getCorner(p1,p2,p3, false);
     VectInt topRight = getCorner(p1,p2,p3,true);
@@ -142,6 +151,7 @@ void fillTriangle(VectInt p1, VectInt p2, VectInt p3, TGAImage &image, float* zb
         // iterating over the square
         for(int x = bottomLeft.x ; x <= topRight.x ; x++) {
             for(int y = bottomLeft.y ; y <= topRight.y ; y++) {
+
                 // get the current VectInt
                 VectInt current;
                 current.x = x;
@@ -154,12 +164,15 @@ void fillTriangle(VectInt p1, VectInt p2, VectInt p3, TGAImage &image, float* zb
                 TGAColor color = texture.get(color_value_x * texture.get_width(), color_value_y * texture.get_height()) * intensity;
                 float z_value = p1.z * bary.x + p2.z * bary.y + p3.z * bary.z;
                 int z_index = current.x + current.y * width;
-                //if the current VectInt is in the triangle, draw it
-                if(VectIntInTriangle(p1,p2,p3,current) && zbuffer[z_index] < z_value) {
-                    zbuffer[z_index] = z_value;
-                    image.set(x,y,color);
+                if(z_index < width * height + width && z_index >= 0) { // check boundaries for z index array
+                    //if the current VectInt is in the triangle, draw it
+                    if(VectIntInTriangle(p1,p2,p3,current) && zbuffer[z_index] < z_value) {
+                        zbuffer[z_index] = z_value;
+                        image.set(x,y,color);
+                    }
                 }
-            }
+                }
+
         }
     }
 }
@@ -176,7 +189,7 @@ void drawTriangle(VectInt p1, VectInt p2, VectInt p3, TGAImage &image, TGAColor 
 /*
  * Method used to draw the facets : they can be drawn as filled triangles or as simple triangles
  */
-void drawFacets(std::vector<VectInt> coordinates, std::vector<int> facets, TGAImage &image, std::vector<VectFloat> precise, std::vector<int> facets_txt, std::vector<VectFloat> vt, TGAImage &texture) {
+void drawFacets(std::vector<int> facets, TGAImage &image, std::vector<VectFloat> precise, std::vector<int> facets_txt, std::vector<VectFloat> vt, TGAImage &texture) {
     // browse the facets
     // facets format : v1/vt1 v2/vt2 v3/vt3
     // foreach facets
@@ -186,10 +199,7 @@ void drawFacets(std::vector<VectInt> coordinates, std::vector<int> facets, TGAIm
         zbuffer[j] = std::numeric_limits<float>::lowest();
     }
     for (int i = 3 ; i < facets.size() - 3 ; i += 3) {
-        // get the real and integer points for the current facet
-        VectInt p1 = coordinates.at(facets.at(i - 3) - 1);
-        VectInt p2 = coordinates.at(facets.at(i - 2) - 1);
-        VectInt p3 = coordinates.at(facets.at(i - 1) - 1);
+
         VectFloat p1d = precise.at(facets.at(i - 3) - 1);
         VectFloat p2d = precise.at(facets.at(i - 2) - 1);
         VectFloat p3d = precise.at(facets.at(i - 1) - 1);
@@ -199,6 +209,7 @@ void drawFacets(std::vector<VectInt> coordinates, std::vector<int> facets, TGAIm
         VectFloat vt3 = vt.at(facets_txt.at(i - 1) - 1);
 
 
+
         // draw a line from x,y of v1 to v2, of v2 to v3 and of v3 to v1 ; uncomment to draw simple triangles
         // drawTriangle(p1, p2, p3, image, white);
 
@@ -206,7 +217,7 @@ void drawFacets(std::vector<VectInt> coordinates, std::vector<int> facets, TGAIm
         // TGAColor randomColor(std::rand()%255,std::rand()%255,std::rand()%255,255);
         // fill a triangle using the vertices and the random color
         // fillTriangle(p1, p2, p3,image, randomColor);
-        fillTriangle(p1, p2, p3,image, zbuffer, texture, vt1, vt2, vt3, p1d, p2d, p3d);
+        fillTriangle(image, zbuffer, texture, vt1, vt2, vt3, p1d, p2d, p3d);
 
     }
 }
@@ -293,8 +304,9 @@ void read_obj(TGAImage &image) {
     */
     text_image.flip_vertically();
     // draw the facets
-    drawFacets(int_vect_list, facets, image, float_vect_list, facets_textures,vt_vect_list, text_image);
+    drawFacets(facets, image, float_vect_list, facets_textures,vt_vect_list, text_image);
 }
+
 
 
 int main() {
