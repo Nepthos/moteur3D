@@ -31,9 +31,13 @@ public:
 
     VectFloat getVect(int idx); // gets the vector on the idx column of the matrix (usually the first)
 
+    static Matrix submatrix(Matrix m, int line, int col);
+    static Matrix cofactor(Matrix m);
+
     // Matrix operations
+    static float determinant(Matrix m); // calculate the determinant of the matrix to know if we can invert it
     Matrix transpose(); // transpose the matrix
-    Matrix invert(); // invert the matrix
+    static Matrix invert(Matrix m); // invert the matrix
     Matrix operator* (Matrix e); // multiply two matrixes
 
 };

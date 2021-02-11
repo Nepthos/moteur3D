@@ -3,7 +3,9 @@
 //
 
 #include "Matrix.h"
-
+void newline() {
+    std::cout << std::endl;
+}
 Matrix::Matrix(int nb_lines, int nb_cols) {
     lines = nb_lines;
     cols = nb_cols;
@@ -62,7 +64,7 @@ void Matrix::set_at(int line, int col, float value) {
 // check if an operation is not outside of the matrix
 void Matrix::check_indexes(int line, int col) {
     if(line >= lines || col >= cols || line < 0 || col < 0) {
-        std::cerr << "Given values are outside of the matrix size" << std::endl;
+        std::cerr << "Given values are outside of the matrix size (size : " << lines << "," << cols << " given " << line << "," << col << ")" <<std::endl;
         exit(-1);
     }
 }
@@ -93,20 +95,81 @@ Matrix Matrix::transpose() {
     return transposed;
 }
 
-// TODO
-Matrix Matrix::invert() {
-    if(lines != cols) {
+// extracts a submatrix of -1 dim without col and line
+Matrix Matrix::submatrix(Matrix m, int line, int col) {
+    Matrix submatrix(m.lines - 1, m.cols-1);
+    int cindex = 0, lindex = 0;
+    for(int i = 0 ; i < m.lines ; i++) {
+        if(i != line) {
+            for(int j = 0 ; j < m.cols ; j++) {
+                if(j != col) {
+                    submatrix.set_at(lindex, cindex, m.get_at(i,j));
+                    cindex++;
+                }
+            }
+            lindex++;
+            cindex = 0;
+        }
+    }
+    return submatrix;
+}
+
+
+//cofactor matrix for a given matrix is the determinant of the submatrix of each item of the matrix
+Matrix Matrix::cofactor(Matrix m) {
+    Matrix cofactor(m.lines, m.cols);
+    int sign = 1;
+    for(int i = 0 ; i < m.lines ; i++) {
+        for(int j = 0 ; j < m.cols ; j++) {
+            sign = (i+j)%2? -1: 1;
+            cofactor.set_at(i,j, (sign * Matrix::determinant(submatrix(m,i,j))));
+        }
+    }
+    return cofactor;
+}
+//recursive function to calculate the determinant of a n-size matrix
+float Matrix::determinant(Matrix m) {
+    float curr_det = 0;
+    std::vector<float> first_line = m.get_line(0); // get the first line of the matrix
+    int sign = 1; // current sign for the operation (will be changed at each iteration)
+
+    if(m.cols == 1) { // if matrix size si 1 by 1, determinant is sign of this element
+        return m.get_at(0,0);
+    }
+    else if(m.cols == 2) {// if matrix a b c d size is 2 by 2, determinant is ad - bc
+        return m.get_at(0,0) * m.get_at(1,1) - m.get_at(0,1) * m.get_at(1,0);
+    } else { // general case for n-size matrix
+        for(int i = 0 ; i < m.lines ; i ++) {
+                Matrix submatrix = Matrix::submatrix(m, 0,i); // gets the submatrix for the recursive call
+                curr_det += (sign * m.get_at(0,i) * determinant(submatrix)); // adds current determinant
+                sign = -sign; // switchs the sign for the next iteration
+            }
+    }
+    return curr_det;
+}
+
+
+//function to gets the inverse of a given matrix
+Matrix Matrix::invert(Matrix m) {
+    float det; // variable for the matrix determinant
+    Matrix inverse(m.lines, m.cols); // creating the inverted matrix
+    if(m.lines != m.cols) { // if non squared matrix, error
         std::cerr << "Cannot invert non squared matrix" << std::endl;
         exit(-1);
+    } else if((det = determinant(m)) == 0) { // if determinant is 0, cannot resolve, error
+        std::cerr << "Cannot resolve matrix if determinant equals 0" << std::endl;
+        exit(-1);
+    } else {
+        Matrix m_adj = cofactor(m.transpose()); // getting the cofactor matrix of the transposed given matrix
+         for(int i = 0 ; i < m.lines ; i++) {
+            for(int j = 0 ; j < m.lines ; j++) {
+                inverse.set_at(i,j, m_adj.get_at(i,j) / det); // each value of the inverted matrix equals the value of the cofactor matrix divided by the determinant
+            }
+        }
     }
-    std::cerr << "Not implemented yet" << std::endl;
-    exit(-1);
+    return inverse;
 }
-/*
- * (
- *
- *
- */
+
 
 
 Matrix Matrix::operator*(Matrix e) {
@@ -125,6 +188,5 @@ Matrix Matrix::operator*(Matrix e) {
         std::cerr << "Cannot multiply matrix with not the same number of lines and cols" << std::endl;
         exit(-1);
     }
-   // new_mat.print();
     return new_mat;
 }
