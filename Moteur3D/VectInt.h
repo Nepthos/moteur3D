@@ -11,6 +11,7 @@ class Matrix;
 class VectInt {
 public:
     VectInt(VectFloat aFloat, int w_size);
+    VectInt(Vect4Float);
 
     int x;
     int y;

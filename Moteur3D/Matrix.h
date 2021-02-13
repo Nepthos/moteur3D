@@ -6,9 +6,11 @@
 #define MOTEUR3D_MATRIX_H
 
 #include "VectFloat.h"
+#include "Vect4Float.h"
 #include <vector>
 #include <iostream>
 class VectFloat;
+class Vect4Float;
 
 class Matrix {
 
@@ -30,6 +32,7 @@ public:
     void print(); // prints the matrix
 
     VectFloat getVect(int idx); // gets the vector on the idx column of the matrix (usually the first)
+    Vect4Float getVect4(int idx);
 
     static Matrix submatrix(Matrix m, int line, int col);
     static Matrix cofactor(Matrix m);

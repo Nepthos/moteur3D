@@ -85,6 +85,10 @@ VectFloat Matrix::getVect(int idx) {
     return {matrix.at(0).at(idx), matrix.at(1).at(idx), matrix.at(2).at(idx)};
 }
 
+Vect4Float Matrix::getVect4(int idx) {
+    check_indexes(3, idx);
+    return {matrix.at(0).at(idx), matrix.at(1).at(idx), matrix.at(2).at(idx), matrix.at(3).at(idx)};
+}
 Matrix Matrix::transpose() {
     Matrix transposed(cols,lines);
     for(int i = 0 ; i < matrix.size() ; i ++) {

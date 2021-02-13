@@ -36,6 +36,7 @@ float VectFloat::operator[](int idx) {
     return idx == 0 ? x : idx == 1 ? y : z;
 }
 
+
 Matrix VectFloat::getMatrix() {
     Matrix vecMatrix(4,1);
     vecMatrix.set_at(0,0, x);
@@ -54,4 +55,8 @@ void VectFloat::print() {
 VectFloat VectFloat::divide(float value) {
     if(value != 0) return { x /= value,y /= value,z /= value};
     else return {x, y, z};
+}
+
+VectFloat VectFloat::operator-() {
+    return {-x,-y,-z};
 }

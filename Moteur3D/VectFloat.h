@@ -22,6 +22,7 @@ public:
     VectFloat divide(float value);
     Matrix getMatrix();
     void print();
+    VectFloat operator-();
 
 };
 
