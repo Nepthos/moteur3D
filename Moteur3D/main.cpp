@@ -8,17 +8,18 @@
 #include <sstream>
 #include <algorithm>
 #include <tgmath.h>
+#include <array>
 
 constexpr int width = 1000;
 constexpr int height = 1000;
 
-VectFloat camera(3,4,1); // eye
+VectFloat camera(1,1,1); // eye
 VectFloat center(0,0,0); // target
 VectFloat vertical(0,1,0); // vertical vector used for cross products to get other axis
 Matrix model_view(4); // model view matrix
 Matrix viewport(4); // viewport matrix
 Matrix projection(4); // perspective projection matrix
-int depth = 80; // depth of the z-buffer
+int depth = 3000; // depth of the z-buffer
 
 const TGAColor white =  { 255 , 255 , 255 , 255};
 const TGAColor red = { 255 , 0 , 0 , 255};
@@ -55,7 +56,7 @@ void line(int x0, int y0, int x1, int y1, TGAImage &image, TGAColor color) {
     }
 }
 
-
+/*
 VectInt getCorner(Vect4Float p1, Vect4Float p2, Vect4Float p3, bool top) {
     VectInt corner;
     if(top) {
@@ -65,6 +66,19 @@ VectInt getCorner(Vect4Float p1, Vect4Float p2, Vect4Float p3, bool top) {
     } else {
         corner.x = std::min(p1.x/p1.a, std::min(p2.x/p1.a, p3.x/p1.a));
         corner.y = std::min(p1.y/p1.a, std::min(p2.y/p1.a, p3.y/p1.a));
+        //std::cout << "BOTTOM : x" << corner.x << " ,y" << corner.y << std::endl; // debug corner
+    }
+    return corner;
+}*/
+VectInt getCorner(VectInt p1, VectInt p2, VectInt p3, bool top) {
+    VectInt corner;
+    if(top) {
+        corner.x = std::max(p1.x, std::max(p2.x, p3.x));
+        corner.y = std::max(p1.y, std::max(p2.y, p3.y));
+        //std::cout << "TOP : x" << corner.x << " ,y" << corner.y << std::endl; // debug corner
+    } else {
+        corner.x = std::min(p1.x, std::min(p2.x, p3.x));
+        corner.y = std::min(p1.y, std::min(p2.y, p3.y));
         //std::cout << "BOTTOM : x" << corner.x << " ,y" << corner.y << std::endl; // debug corner
     }
     return corner;
@@ -146,7 +160,26 @@ void create_viewport(int x, int y, int w, int h) {
     viewport.set_at(2,2, depth/2.f);
 }
 
+float intensity_flat_shading(std::array<VectFloat, 3> points, VectFloat light) {
+    light.normalize();
+    // color triangles using light
+    VectFloat AB(points[1].x - points[0].x, points[1].y - points[0].y, points[1].z - points[0].z);
+    VectFloat AC(points[2].x - points[0].x, points[2].y - points[0].y, points[2].z - points[0].z);
+    VectFloat norm = crossProduct(AB,AC);
+    //std::cout << "Norm vector before : x" << norm.x << ", y" << norm.y << ", z" << norm.z << std::endl; // debug normalization
+    norm.normalize();
+    //std::cout << "Norm vector : x" << norm.x << ", y" << norm.y << ", z" << norm.z << std::endl; // debug normalization
+    return dotProduct(norm, light);
+}
 
+float intensity_gouraud_shading(VectFloat *points_vn, VectFloat light, VectFloat barycenter) {
+    light.normalize();
+    float lg_x = dotProduct(light,points_vn[0]);
+    float lg_y = dotProduct(light, points_vn[1]);
+    float lg_z = dotProduct(light, points_vn[2]);
+    VectFloat lg(lg_x,lg_y,lg_z);
+    return dotProduct(lg,barycenter);
+}
 
 /*
  * Method used to draw a filled triangle
@@ -164,24 +197,11 @@ void fillTriangle(TGAImage &image, float* zbuffer, TGAImage &texture, VectFloat*
     VectInt p3((p3f.x/p3f.a), (p3f.y/p3f.a),(p3f.z/p3f.a));
 
     // creating a square starting by the bottom left VectInt to the top right VectInt of the triangle
-    VectInt bottomLeft = getCorner(p1f,p2f,p3f, false);
-    VectInt topRight = getCorner(p1f,p2f,p3f,true);
+    VectInt bottomLeft = getCorner(p1,p2,p3, false);
+    VectInt topRight = getCorner(p1,p2,p3,true);
 
-    // color triangles using light
-    VectFloat light(0, 0, 1);
-    VectFloat AB(p2f.x - p1f.x, p2f.y - p1f.y, p2f.z - p1f.z);
-    VectFloat AC(p3f.x - p1f.x, p3f.y - p1f.y, p3f.z - p1f.z);
-    VectFloat norm = crossProduct(AB, AC);
-    //std::cout << "Norm vector before : x" << norm.x << ", y" << norm.y << ", z" << norm.z << std::endl; // debug normalization
-    norm.normalize();
-    //std::cout << "Norm vector : x" << norm.x << ", y" << norm.y << ", z" << norm.z << std::endl; // debug normalization
-    float intensity = dotProduct(norm, light);
-    // std::cout << "Intensity : " << intensity << std::endl; // debug light intensity
 
-    // old light
-    // TGAColor lightColor(intensity*255, intensity*255, intensity*255, 255);
     // iterating over the square
-    if(intensity > 0) {
         for(int x = bottomLeft.x ; x <= topRight.x ; x++) {
             for(int y = bottomLeft.y ; y <= topRight.y ; y++) {
 
@@ -191,10 +211,13 @@ void fillTriangle(TGAImage &image, float* zbuffer, TGAImage &texture, VectFloat*
                 current.y = y;
                 VectFloat bary = barycentric(p1,p2,p3,current);
 
+                VectFloat light(1,0,0);
                 float color_value_x = points_tx[0].x * bary.x + points_tx[1].x * bary.y + points_tx[2].x * bary.z;
                 float color_value_y = points_tx[0].y * bary.x + points_tx[1].y * bary.y + points_tx[2].y * bary.z;
+                float intensity = intensity_gouraud_shading(points_vn, light, bary);
+
                 //std::cout << color_value_x << " - " << color_value_y << std::endl;
-                TGAColor color = texture.get(color_value_x * texture.get_width(), color_value_y * texture.get_height()) * intensity;
+                TGAColor color = texture.get(color_value_x * texture.get_width(), color_value_y * texture.get_height()) * (intensity);
                 float z_value = p1.z * bary.x + p2.z * bary.y + p3.z * bary.z;
                 int z_index = current.x + current.y * width;
                 if(z_index < width * height + width && z_index >= 0) { // check boundaries for z index array
@@ -206,7 +229,6 @@ void fillTriangle(TGAImage &image, float* zbuffer, TGAImage &texture, VectFloat*
                 }
             }
         }
-    }
 }
 
 /*
@@ -276,10 +298,12 @@ void read_obj(TGAImage &image) {
 
     TGAImage text_image;
     TGAImage nm_image;
+    //../obj/diablo3_pose/diablo3_pose_diffuse.tga
+    //../obj/african_head/african_head_diffuse.tga
     if(text_image.read_tga_file("../obj/african_head/african_head_diffuse.tga")) {
         std::cout << "Texture loaded" << std::endl;
     }
-    if(nm_image.read_tga_file("../obj/african_head/african_head_diffuse.tga")) {
+    if(nm_image.read_tga_file("../obj/african_head/african_head_nm.tga")) {
         std::cout << "Normal map loaded" << std::endl;
     }
 
@@ -325,6 +349,7 @@ void read_obj(TGAImage &image) {
             } else if(current_line.rfind("vn ", 0) == 0) {
                 VectFloat vn;
                 stream_line >> trash >> trash >> vn.x >> vn.y >> vn.z;
+                vn.normalize();
                 vn_vect_list.push_back(vn);
             }
         }
