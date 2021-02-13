@@ -151,12 +151,12 @@ void create_viewport(int x, int y, int w, int h) {
 /*
  * Method used to draw a filled triangle
  */
-void fillTriangle(TGAImage &image, float* zbuffer, TGAImage &texture, VectFloat vt1, VectFloat vt2, VectFloat vt3,VectFloat p1d, VectFloat p2d, VectFloat p3d) {
+void fillTriangle(TGAImage &image, float* zbuffer, TGAImage &texture, VectFloat* points, VectFloat* points_tx, VectFloat* points_vn) {
 
     // getting final points from the world view matrix
-    Vect4Float p1f = (viewport * projection * model_view * p1d.getMatrix()).getVect4(0);
-    Vect4Float p2f = (viewport * projection * model_view * p2d.getMatrix()).getVect4(0);
-    Vect4Float p3f = (viewport * projection * model_view * p3d.getMatrix()).getVect4(0);
+    Vect4Float p1f = (viewport * projection * model_view * points[0].getMatrix()).getVect4(0);
+    Vect4Float p2f = (viewport * projection * model_view * points[1].getMatrix()).getVect4(0);
+    Vect4Float p3f = (viewport * projection * model_view * points[2].getMatrix()).getVect4(0);
 
     // from 4d world points to 3d screen points
     VectInt p1((p1f.x/p1f.a), (p1f.y/p1f.a), (p1f.z/p1f.a));
@@ -191,8 +191,8 @@ void fillTriangle(TGAImage &image, float* zbuffer, TGAImage &texture, VectFloat 
                 current.y = y;
                 VectFloat bary = barycentric(p1,p2,p3,current);
 
-                float color_value_x = vt1.x * bary.x + vt2.x * bary.y + vt3.x * bary.z;
-                float color_value_y = vt1.y * bary.x + vt2.y * bary.y + vt3.y * bary.z;
+                float color_value_x = points_tx[0].x * bary.x + points_tx[1].x * bary.y + points_tx[2].x * bary.z;
+                float color_value_y = points_tx[0].y * bary.x + points_tx[1].y * bary.y + points_tx[2].y * bary.z;
                 //std::cout << color_value_x << " - " << color_value_y << std::endl;
                 TGAColor color = texture.get(color_value_x * texture.get_width(), color_value_y * texture.get_height()) * intensity;
                 float z_value = p1.z * bary.x + p2.z * bary.y + p3.z * bary.z;
@@ -221,26 +221,31 @@ void drawTriangle(VectInt p1, VectInt p2, VectInt p3, TGAImage &image, TGAColor 
 /*
  * Method used to draw the facets : they can be drawn as filled triangles or as simple triangles
  */
-void drawFacets(std::vector<int> facets, TGAImage &image, std::vector<VectFloat> precise, std::vector<int> facets_txt, std::vector<VectFloat> vt, TGAImage &texture) {
-    // browse the facets
-    // facets format : v1/vt1 v2/vt2 v3/vt3
-    // foreach facets
+void drawFacets(TGAImage &image, std::vector<int> facets_points, std::vector<VectFloat> points, std::vector<int> facets_tx, std::vector<VectFloat> points_tx,  TGAImage &texture, std::vector<int> facets_nm, std::vector<VectFloat> points_nm, TGAImage &nmap) {
+    // browse the facets_points
+    // facets_points format : v1/vt1 v2/vt2 v3/vt3
+    // foreach facets_points
 
     float* zbuffer = new float[width * height + width];
     for(int j = 0 ; j < width * height + width ; j++) {
         zbuffer[j] = std::numeric_limits<float>::lowest();
     }
-    for (int i = 3 ; i < facets.size() - 3 ; i += 3) {
+    for (int i = 3 ; i < facets_points.size() - 3 ; i += 3) {
 
-        VectFloat p1d = precise.at(facets.at(i - 3) - 1);
-        VectFloat p2d = precise.at(facets.at(i - 2) - 1);
-        VectFloat p3d = precise.at(facets.at(i - 1) - 1);
+        VectFloat curr_points[3];
+        curr_points[0] = points.at(facets_points.at(i - 3) - 1);
+        curr_points[1] = points.at(facets_points.at(i - 2) - 1);
+        curr_points[2] = points.at(facets_points.at(i - 1) - 1);
 
-        VectFloat vt1 = vt.at(facets_txt.at(i - 3) - 1);
-        VectFloat vt2 = vt.at(facets_txt.at(i - 2) - 1);
-        VectFloat vt3 = vt.at(facets_txt.at(i - 1) - 1);
+        VectFloat curr_tx[3];
+        curr_tx[0] = points_tx.at(facets_tx.at(i - 3) - 1);
+        curr_tx[1] = points_tx.at(facets_tx.at(i - 2) - 1);
+        curr_tx[2] = points_tx.at(facets_tx.at(i - 1) - 1);
 
-
+        VectFloat curr_vn[3];
+        curr_vn[0] = points_nm.at(facets_nm.at(i - 3) - 1);
+        curr_vn[1] = points_nm.at(facets_nm.at(i - 2) - 1);
+        curr_vn[2] = points_nm.at(facets_nm.at(i - 1) - 1);
 
         // draw a line from x,y of v1 to v2, of v2 to v3 and of v3 to v1 ; uncomment to draw simple triangles
         // drawTriangle(p1, p2, p3, image, white);
@@ -249,7 +254,7 @@ void drawFacets(std::vector<int> facets, TGAImage &image, std::vector<VectFloat>
         // TGAColor randomColor(std::rand()%255,std::rand()%255,std::rand()%255,255);
         // fill a triangle using the vertices and the random color
         // fillTriangle(p1, p2, p3,image, randomColor);
-        fillTriangle(image, zbuffer, texture, vt1, vt2, vt3, p1d, p2d, p3d);
+        fillTriangle(image, zbuffer, texture, curr_points, curr_tx, curr_vn);
 
     }
 }
@@ -258,20 +263,24 @@ void drawFacets(std::vector<int> facets, TGAImage &image, std::vector<VectFloat>
  * Reads the obj file
  */
 void read_obj(TGAImage &image) {
-    // list of vertices to be drawn using integers
-    std::vector<VectInt> int_vect_list;
-    // list of real vertices read from the obj file
-    std::vector<VectFloat> float_vect_list;
 
-    std::vector<VectFloat> vt_vect_list; // vt
+    // list of real vertices read from the obj file
+    std::vector<VectFloat> float_vect_list; // vertices
+    std::vector<VectFloat> vt_vect_list; // textures vectors vt
+    std::vector<VectFloat> vn_vect_list; // normal vectors vn
 
     // list of the facets read from the obj file
     std::vector<int> facets;
     std::vector<int> facets_textures; // vt indexes
+    std::vector<int> facets_vn; // vn indexes
 
     TGAImage text_image;
+    TGAImage nm_image;
     if(text_image.read_tga_file("../obj/african_head/african_head_diffuse.tga")) {
-        std::cout << "ok" << std::endl;
+        std::cout << "Texture loaded" << std::endl;
+    }
+    if(nm_image.read_tga_file("../obj/african_head/african_head_diffuse.tga")) {
+        std::cout << "Normal map loaded" << std::endl;
     }
 
     // obj file to read
@@ -283,36 +292,29 @@ void read_obj(TGAImage &image) {
 
             std::istringstream stream_line(current_line.c_str());
             char trash;
-            VectInt p;
             VectFloat pf;
             if (current_line.rfind("v ",0) == 0) {
                 double coord[3];
                 stream_line >> trash >> coord[0] >> coord[1] >> coord[2]; // storing real vertices points in array
-                // assign draw coords in integer vector
-                p.x = coord[0] * (width/2) + (width/2);
-                p.y = coord[1] * (height/2) + (height/2);
-                p.z = coord[2] * (width/2) + (width/2);
 
                 // assign real coords in float vector
                 pf.x = coord[0];
                 pf.y = coord[1];
                 pf.z = coord[2];
-
-                //image.set(p.x, p.y, red); // uncomment to draw red dots map
-
-                // storing current vertice in list
-                int_vect_list.push_back(p);
                 float_vect_list.push_back(pf);
+
             } else if(current_line.rfind("f ",0) == 0){
                 int indexes[3];
                 int indexes_text[3];
+                int indexes_vn[3];
                 int trashNumber;
-                // storing needed facet data in array (facets format : v1/vt1 v2/vt2 v3/vt3)
-                stream_line >> trash >> indexes[0] >> trash >> indexes_text[0] >> trash >> trashNumber >> indexes[1] >> trash >> indexes_text[1] >> trash >> trashNumber >> indexes[2] >> trash >> indexes_text[2];
+                // storing needed facet data in array (facets format : v1/vt1/vn1 v2/vt2/vn2 v3/vt3/vn3)
+                stream_line >> trash >> indexes[0] >> trash >> indexes_text[0] >> trash >> indexes_vn[0] >> indexes[1] >> trash >> indexes_text[1] >> trash >> indexes_vn[1] >> indexes[2] >> trash >> indexes_text[2] >> trash >> indexes_vn[2];
                 // std::cout << "F: "; //uncomment facets debug print
                 for(int i = 0 ; i < 3 ; i++) {
                     facets.push_back(indexes[i]);
                     facets_textures.push_back(indexes_text[i]);
+                    facets_vn.push_back(indexes_vn[i]);
                     // std::cout << indexes[i] << " "; //uncomment facets debug print
                 }
                 //std::cout << std::endl; uncomment facets debug print
@@ -320,6 +322,10 @@ void read_obj(TGAImage &image) {
                 VectFloat vt;
                 stream_line >> trash >> trash >> vt.x >> vt.y >> vt.z;
                 vt_vect_list.push_back(vt);
+            } else if(current_line.rfind("vn ", 0) == 0) {
+                VectFloat vn;
+                stream_line >> trash >> trash >> vn.x >> vn.y >> vn.z;
+                vn_vect_list.push_back(vn);
             }
         }
     } else {
@@ -336,7 +342,7 @@ void read_obj(TGAImage &image) {
     */
     text_image.flip_vertically();
     // draw the facets
-    drawFacets(facets, image, float_vect_list, facets_textures,vt_vect_list, text_image);
+    drawFacets(image,facets,float_vect_list,facets_textures,vt_vect_list,text_image,facets_vn,vn_vect_list,nm_image);
 }
 
 
