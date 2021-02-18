@@ -13,12 +13,17 @@
 constexpr int width = 1000;
 constexpr int height = 1000;
 
-VectFloat camera(1,1,1); // eye
+VectFloat camera(-1,1,3); // eye
 VectFloat center(0,0,0); // target
 VectFloat vertical(0,1,0); // vertical vector used for cross products to get other axis
 Matrix model_view(4); // model view matrix
 Matrix viewport(4); // viewport matrix
 Matrix projection(4); // perspective projection matrix
+Matrix uniform_M(4);
+Matrix uniform_MIT(4);
+VectFloat light(1,1,1); // input light for the scene
+
+VectFloat final_light; // final light calculated with uniform matrix
 int depth = 3000; // depth of the z-buffer
 
 const TGAColor white =  { 255 , 255 , 255 , 255};
@@ -56,20 +61,7 @@ void line(int x0, int y0, int x1, int y1, TGAImage &image, TGAColor color) {
     }
 }
 
-/*
-VectInt getCorner(Vect4Float p1, Vect4Float p2, Vect4Float p3, bool top) {
-    VectInt corner;
-    if(top) {
-        corner.x = std::max(p1.x/p1.a, std::max(p2.x/p1.a, p3.x/p1.a));
-        corner.y = std::max(p1.y/p1.a, std::max(p2.y/p1.a, p3.y/p1.a));
-        //std::cout << "TOP : x" << corner.x << " ,y" << corner.y << std::endl; // debug corner
-    } else {
-        corner.x = std::min(p1.x/p1.a, std::min(p2.x/p1.a, p3.x/p1.a));
-        corner.y = std::min(p1.y/p1.a, std::min(p2.y/p1.a, p3.y/p1.a));
-        //std::cout << "BOTTOM : x" << corner.x << " ,y" << corner.y << std::endl; // debug corner
-    }
-    return corner;
-}*/
+
 VectInt getCorner(VectInt p1, VectInt p2, VectInt p3, bool top) {
     VectInt corner;
     if(top) {
@@ -160,8 +152,7 @@ void create_viewport(int x, int y, int w, int h) {
     viewport.set_at(2,2, depth/2.f);
 }
 
-float intensity_flat_shading(std::array<VectFloat, 3> points, VectFloat light) {
-    light.normalize();
+float intensity_flat_shading(std::array<VectFloat, 3> points) {
     // color triangles using light
     VectFloat AB(points[1].x - points[0].x, points[1].y - points[0].y, points[1].z - points[0].z);
     VectFloat AC(points[2].x - points[0].x, points[2].y - points[0].y, points[2].z - points[0].z);
@@ -169,23 +160,31 @@ float intensity_flat_shading(std::array<VectFloat, 3> points, VectFloat light) {
     //std::cout << "Norm vector before : x" << norm.x << ", y" << norm.y << ", z" << norm.z << std::endl; // debug normalization
     norm.normalize();
     //std::cout << "Norm vector : x" << norm.x << ", y" << norm.y << ", z" << norm.z << std::endl; // debug normalization
-    return dotProduct(norm, light);
+    return std::max(0.f, dotProduct(norm, light));
 }
 
-float intensity_gouraud_shading(VectFloat *points_vn, VectFloat light, VectFloat barycenter) {
-    light.normalize();
+float intensity_gouraud_shading(VectFloat *points_vn, VectFloat barycenter) {
     float lg_x = dotProduct(light,points_vn[0]);
     float lg_y = dotProduct(light, points_vn[1]);
     float lg_z = dotProduct(light, points_vn[2]);
     VectFloat lg(lg_x,lg_y,lg_z);
-    return dotProduct(lg,barycenter);
+    return std::max(0.f, dotProduct(lg,barycenter));
+}
+
+float intensity_normal_mapping(VectInt col, TGAImage &nmap) {
+    TGAColor val_nm = nmap.get(col.x,col.y);
+    VectFloat val_nm_vct(val_nm[0]-130, val_nm[1]-130, val_nm[2]-130); // subtract value to reduce light output and enhance details, otherwise too much light
+    // val_nm_vct.print();
+    val_nm_vct.normalize(); // from -130 125 to -1 1
+    VectFloat n = (uniform_MIT * val_nm_vct.getMatrix()).getVect(0);
+    n.normalize();
+    return std::max(0.f, (dotProduct(final_light,n)));
 }
 
 /*
  * Method used to draw a filled triangle
  */
-void fillTriangle(TGAImage &image, float* zbuffer, TGAImage &texture, VectFloat* points, VectFloat* points_tx, VectFloat* points_vn) {
-
+void fillTriangle(TGAImage &image, float* zbuffer, TGAImage &texture, VectFloat* points, VectFloat* points_tx, VectFloat* points_vn, TGAImage &nmap) {
     // getting final points from the world view matrix
     Vect4Float p1f = (viewport * projection * model_view * points[0].getMatrix()).getVect4(0);
     Vect4Float p2f = (viewport * projection * model_view * points[1].getMatrix()).getVect4(0);
@@ -202,6 +201,7 @@ void fillTriangle(TGAImage &image, float* zbuffer, TGAImage &texture, VectFloat*
 
 
     // iterating over the square
+        #pragma omp parallel for
         for(int x = bottomLeft.x ; x <= topRight.x ; x++) {
             for(int y = bottomLeft.y ; y <= topRight.y ; y++) {
 
@@ -211,18 +211,21 @@ void fillTriangle(TGAImage &image, float* zbuffer, TGAImage &texture, VectFloat*
                 current.y = y;
                 VectFloat bary = barycentric(p1,p2,p3,current);
 
-                VectFloat light(1,0,0);
-                float color_value_x = points_tx[0].x * bary.x + points_tx[1].x * bary.y + points_tx[2].x * bary.z;
-                float color_value_y = points_tx[0].y * bary.x + points_tx[1].y * bary.y + points_tx[2].y * bary.z;
-                float intensity = intensity_gouraud_shading(points_vn, light, bary);
 
-                //std::cout << color_value_x << " - " << color_value_y << std::endl;
-                TGAColor color = texture.get(color_value_x * texture.get_width(), color_value_y * texture.get_height()) * (intensity);
                 float z_value = p1.z * bary.x + p2.z * bary.y + p3.z * bary.z;
-                int z_index = current.x + current.y * width;
-                if(z_index < width * height + width && z_index >= 0) { // check boundaries for z index array
-                    //if the current VectInt is in the triangle, draw it
-                    if(VectIntInTriangle(p1,p2,p3,current) && zbuffer[z_index] < z_value) { //
+                int z_index = current.x + current.y * height;
+                if(z_index < width * height && z_index >= 0) { // check boundaries for z index array
+                    //if the current VectInt is in the triangle, and zvalue is above current stored zbuffer draw it
+                    if(VectIntInTriangle(p1,p2,p3,current) && zbuffer[z_index] < z_value) {
+                        // current scene light
+                        int color_value_x = (points_tx[0].x * bary.x + points_tx[1].x * bary.y + points_tx[2].x * bary.z) * texture.get_width();
+                        int color_value_y = (points_tx[0].y * bary.x + points_tx[1].y * bary.y + points_tx[2].y * bary.z) * texture.get_height();
+                        VectInt col(color_value_x , color_value_y, 0);
+                        //float intensity = intensity_flat_shading({VectFloat(p1f),VectFloat(p2f),VectFloat(p3f)}); // flat
+                        //float intensity = intensity_gouraud_shading(points_vn, bary); // gouraud
+                        float intensity = intensity_normal_mapping(col, nmap);
+                        TGAColor color = texture.get(col.x, col.y) * (intensity);
+                        TGAColor debug_light = TGAColor(255,255,255) * intensity;
                         zbuffer[z_index] = z_value;
                         image.set(x,y,color);
                     }
@@ -243,13 +246,13 @@ void drawTriangle(VectInt p1, VectInt p2, VectInt p3, TGAImage &image, TGAColor 
 /*
  * Method used to draw the facets : they can be drawn as filled triangles or as simple triangles
  */
-void drawFacets(TGAImage &image, std::vector<int> facets_points, std::vector<VectFloat> points, std::vector<int> facets_tx, std::vector<VectFloat> points_tx,  TGAImage &texture, std::vector<int> facets_nm, std::vector<VectFloat> points_nm, TGAImage &nmap) {
+void render(TGAImage &image, std::vector<int> facets_points, std::vector<VectFloat> points, std::vector<int> facets_tx, std::vector<VectFloat> points_tx,  TGAImage &texture, std::vector<int> facets_nm, std::vector<VectFloat> points_nm, TGAImage &nmap) {
     // browse the facets_points
     // facets_points format : v1/vt1 v2/vt2 v3/vt3
     // foreach facets_points
 
-    float* zbuffer = new float[width * height + width];
-    for(int j = 0 ; j < width * height + width ; j++) {
+    float* zbuffer = new float[width * height];
+    for(int j = 0 ; j < width * height ; j++) {
         zbuffer[j] = std::numeric_limits<float>::lowest();
     }
     for (int i = 3 ; i < facets_points.size() - 3 ; i += 3) {
@@ -276,7 +279,7 @@ void drawFacets(TGAImage &image, std::vector<int> facets_points, std::vector<Vec
         // TGAColor randomColor(std::rand()%255,std::rand()%255,std::rand()%255,255);
         // fill a triangle using the vertices and the random color
         // fillTriangle(p1, p2, p3,image, randomColor);
-        fillTriangle(image, zbuffer, texture, curr_points, curr_tx, curr_vn);
+        fillTriangle(image, zbuffer, texture, curr_points, curr_tx, curr_vn, nmap);
 
     }
 }
@@ -303,11 +306,15 @@ void read_obj(TGAImage &image) {
     if(text_image.read_tga_file("../obj/african_head/african_head_diffuse.tga")) {
         std::cout << "Texture loaded" << std::endl;
     }
+    //../obj/african_head/african_head_nm.tga
+    //../obj/diablo3_pose/diablo3_pose_nm.tga
     if(nm_image.read_tga_file("../obj/african_head/african_head_nm.tga")) {
         std::cout << "Normal map loaded" << std::endl;
     }
 
     // obj file to read
+    //../obj/african_head/african_head.obj
+    //../obj/diablo3_pose/diablo3_pose.obj
     std::string const fileName("../obj/african_head/african_head.obj");
     std::ifstream buffer(fileName.c_str());
     if(buffer) {
@@ -318,20 +325,12 @@ void read_obj(TGAImage &image) {
             char trash;
             VectFloat pf;
             if (current_line.rfind("v ",0) == 0) {
-                double coord[3];
-                stream_line >> trash >> coord[0] >> coord[1] >> coord[2]; // storing real vertices points in array
-
-                // assign real coords in float vector
-                pf.x = coord[0];
-                pf.y = coord[1];
-                pf.z = coord[2];
+                stream_line >> trash >> pf.x >> pf.y >> pf.z; // storing real vertices points in object
                 float_vect_list.push_back(pf);
-
             } else if(current_line.rfind("f ",0) == 0){
                 int indexes[3];
                 int indexes_text[3];
                 int indexes_vn[3];
-                int trashNumber;
                 // storing needed facet data in array (facets format : v1/vt1/vn1 v2/vt2/vn2 v3/vt3/vn3)
                 stream_line >> trash >> indexes[0] >> trash >> indexes_text[0] >> trash >> indexes_vn[0] >> indexes[1] >> trash >> indexes_text[1] >> trash >> indexes_vn[1] >> indexes[2] >> trash >> indexes_text[2] >> trash >> indexes_vn[2];
                 // std::cout << "F: "; //uncomment facets debug print
@@ -366,19 +365,33 @@ void read_obj(TGAImage &image) {
     std::cout << int_vect_list.size() << std::endl;
     */
     text_image.flip_vertically();
-    // draw the facets
-    drawFacets(image,facets,float_vect_list,facets_textures,vt_vect_list,text_image,facets_vn,vn_vect_list,nm_image);
+    nm_image.flip_vertically();
+    render(image,facets,float_vect_list,facets_textures,vt_vect_list,text_image,facets_vn,vn_vect_list,nm_image);
 }
 
 
 
 int main() {
     move_scene(camera, center, vertical);
-    create_viewport(0, 0, width , height); // starting from 0 0 to width height
-    projection.set_at(2,3,-1.f/camera.z);
+    create_viewport(100, 100, width-200, height-200);
+
+    projection.set_at(3,2,-1.f/camera.z);
+    uniform_M = projection * model_view;
+    uniform_MIT = Matrix::invert((projection * model_view).transpose());
+
+    //uniform_M.print();
+    //projection.print();
+    //uniform_MIT.print();
+
+    // calculating final light vector
+    light.normalize();
+    final_light = (uniform_M * light.getMatrix()).getVect(0);
+    final_light.normalize();
+
 
     TGAImage image(width, height, TGAImage::RGB);
     read_obj(image);
+    
     //image.flip_vertically();
     image.write_tga_file("framebuffer.tga");
     return 0;

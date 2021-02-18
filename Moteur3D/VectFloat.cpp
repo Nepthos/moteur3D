@@ -51,7 +51,6 @@ void VectFloat::print() {
 
 }
 
-
 VectFloat VectFloat::divide(float value) {
     if(value != 0) return { x /= value,y /= value,z /= value};
     else return {x, y, z};
@@ -59,4 +58,10 @@ VectFloat VectFloat::divide(float value) {
 
 VectFloat VectFloat::operator-() {
     return {-x,-y,-z};
+}
+
+VectFloat::VectFloat(Vect4Float aFloat) {
+    x = aFloat.x;
+    y = aFloat.y;
+    z = aFloat.z;
 }
