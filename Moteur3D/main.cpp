@@ -26,11 +26,6 @@ VectFloat light(1,1,1); // input light for the scene
 VectFloat final_light; // final light calculated with uniform matrix
 int depth = 3000; // depth of the z-buffer
 
-const TGAColor white =  { 255 , 255 , 255 , 255};
-const TGAColor red = { 255 , 0 , 0 , 255};
-const TGAColor green = { 0 , 255 , 0 , 255};
-const TGAColor blue = { 0 , 0 , 255 , 255};
-
 void line(int x0, int y0, int x1, int y1, TGAImage &image, TGAColor color) {
     bool steep = false;
     if (std::abs(x0-x1)<std::abs(y0-y1)) {
@@ -61,8 +56,8 @@ void line(int x0, int y0, int x1, int y1, TGAImage &image, TGAColor color) {
     }
 }
 
-
-VectInt getCorner(VectInt p1, VectInt p2, VectInt p3, bool top) {
+// returns top right corner if top is true, bottom left corner otherwise
+VectInt get_corner(VectInt p1, VectInt p2, VectInt p3, bool top) {
     VectInt corner;
     if(top) {
         corner.x = std::max(p1.x, std::max(p2.x, p3.x));
@@ -83,7 +78,7 @@ int determinant(VectInt p1, VectInt p2, VectInt p3) {
 
 
 // cross product vector of two vectors
-VectFloat crossProduct(VectFloat p1, VectFloat p2) {
+VectFloat cross_product(VectFloat p1, VectFloat p2) {
     VectFloat vect;
     vect.x = p1.y * p2.z - p1.z * p2.y;
     vect.y = p1.z * p2.x - p1.x * p2.z;
@@ -92,7 +87,7 @@ VectFloat crossProduct(VectFloat p1, VectFloat p2) {
 }
 
 
-float dotProduct(VectFloat p1, VectFloat p2) {
+float dot_product(VectFloat p1, VectFloat p2) {
     return p1.x * p2.x + p1.y * p2.y + p1.z * p2.z;
 }
 
@@ -102,7 +97,7 @@ float dotProduct(VectFloat p1, VectFloat p2) {
 // we get the determinant of 2 vertices of the triangle and our test vertice
 // if the determinants are all positive, or all negative, we are inside the triangle
 // otherwise if some are positive and some are not we are not inside of the triangle
-bool VectIntInTriangle(VectInt p1, VectInt p2, VectInt p3, VectInt test) {
+bool is_in_triangle(VectInt p1, VectInt p2, VectInt p3, VectInt test) {
     int v1 = determinant(test, p1, p2);
     int v2 = determinant(test, p2, p3);
     int v3 = determinant(test, p3, p1);
@@ -116,8 +111,8 @@ VectFloat barycentric(VectInt p1, VectInt p2, VectInt p3, VectInt test) {
     VectFloat AC(p3.x - p1.x, p3.y - p1.y, p3.z - p1.z);
     VectFloat AP(test.x - p1.x, test.y - p1.y, test.z - p1.z);
 
-    float lambda3 = crossProduct(AB,AP).z / crossProduct(AB,AC).z;
-    float lambda2 = crossProduct(AP,AC).z / crossProduct(AB,AC).z;
+    float lambda3 = cross_product(AB, AP).z / cross_product(AB, AC).z;
+    float lambda2 = cross_product(AP, AC).z / cross_product(AB, AC).z;
     float lambda1 = 1.f -lambda2-lambda3;
 
     return {lambda1,lambda2,lambda3};
@@ -127,18 +122,18 @@ VectFloat barycentric(VectInt p1, VectInt p2, VectInt p3, VectInt test) {
 void move_scene(VectFloat source, VectFloat center, VectFloat up) {
     VectFloat z(source.x-center.x,source.y-center.y,source.z-center.z); // look direction z axis
     z.normalize();
-    VectFloat x = crossProduct(up,z); // cross product to get x axis
+    VectFloat x = cross_product(up, z); // cross product to get x axis
     x.normalize();
-    VectFloat y = crossProduct(z,x); // cross product to get y axis
+    VectFloat y = cross_product(z, x); // cross product to get y axis
     y.normalize();
     for(int i = 0; i < 3 ; i++) {
         model_view.set_at(0,i,x[i]);
         model_view.set_at(1,i,y[i]);
         model_view.set_at(2,i,z[i]);
     }
-    model_view.set_at(0, 3, dotProduct(x, -center));
-    model_view.set_at(1, 3, dotProduct(y, -center));
-    model_view.set_at(2, 3, dotProduct(z, -center));
+    model_view.set_at(0, 3, dot_product(x, -center));
+    model_view.set_at(1, 3, dot_product(y, -center));
+    model_view.set_at(2, 3, dot_product(z, -center));
 }
 
 // creates the view port matrix used to transform clip coords to screen coords
@@ -156,17 +151,17 @@ float intensity_flat_shading(std::array<VectFloat, 3> points) {
     // color triangles using light
     VectFloat AB(points[1].x - points[0].x, points[1].y - points[0].y, points[1].z - points[0].z);
     VectFloat AC(points[2].x - points[0].x, points[2].y - points[0].y, points[2].z - points[0].z);
-    VectFloat norm = crossProduct(AB,AC);
+    VectFloat norm = cross_product(AB, AC);
     norm.normalize();
-    return std::max(0.f, dotProduct(norm, light));
+    return std::max(0.f, dot_product(norm, light));
 }
 
 float intensity_gouraud_shading(VectFloat *points_vn, VectFloat barycenter) {
-    float lg_x = dotProduct(light,points_vn[0]);
-    float lg_y = dotProduct(light, points_vn[1]);
-    float lg_z = dotProduct(light, points_vn[2]);
+    float lg_x = dot_product(light, points_vn[0]);
+    float lg_y = dot_product(light, points_vn[1]);
+    float lg_z = dot_product(light, points_vn[2]);
     VectFloat lg(lg_x,lg_y,lg_z);
-    return std::max(0.f, dotProduct(lg,barycenter));
+    return std::max(0.f, dot_product(lg, barycenter));
 }
 
 float intensity_normal_mapping(VectInt col, TGAImage &nmap) {
@@ -175,13 +170,13 @@ float intensity_normal_mapping(VectInt col, TGAImage &nmap) {
     val_nm_vct.normalize();
     VectFloat n = (uniform_MIT * val_nm_vct.getMatrix()).getVect(0);
     n.normalize();
-    return std::max(0.f, (dotProduct(final_light,n)));
+    return std::max(0.f, (dot_product(final_light, n)));
 }
 
 /*
  * Method used to draw a filled triangle
  */
-void fillTriangle(TGAImage &image, float* zbuffer, TGAImage &texture, VectFloat* points, VectFloat* points_tx, VectFloat* points_vn, TGAImage &nmap) {
+void fill_triangle(TGAImage &image, float* zbuffer, TGAImage &texture, VectFloat* points, VectFloat* points_tx, VectFloat* points_vn, TGAImage &nmap) {
     // getting final points from the world view matrix
     Vect4Float p1f = (viewport * projection * model_view * points[0].getMatrix()).getVect4(0);
     Vect4Float p2f = (viewport * projection * model_view * points[1].getMatrix()).getVect4(0);
@@ -193,8 +188,8 @@ void fillTriangle(TGAImage &image, float* zbuffer, TGAImage &texture, VectFloat*
     VectInt p3((p3f.x/p3f.a), (p3f.y/p3f.a),(p3f.z/p3f.a));
 
     // creating a square starting by the bottom left VectInt to the top right VectInt of the triangle
-    VectInt bottomLeft = getCorner(p1,p2,p3, false);
-    VectInt topRight = getCorner(p1,p2,p3,true);
+    VectInt bottomLeft = get_corner(p1, p2, p3, false);
+    VectInt topRight = get_corner(p1, p2, p3, true);
 
     // iterating over the square
 #pragma omp parallel for
@@ -209,7 +204,7 @@ void fillTriangle(TGAImage &image, float* zbuffer, TGAImage &texture, VectFloat*
                 VectFloat bary = barycentric(p1,p2,p3,current);
                 float z_value = p1.z * bary.x + p2.z * bary.y + p3.z * bary.z;
                 //if the current VectInt is in the triangle, and zvalue is above current stored zbuffer draw it
-                if(VectIntInTriangle(p1,p2,p3,current) && zbuffer[z_index] < z_value) {
+                if(is_in_triangle(p1, p2, p3, current) && zbuffer[z_index] < z_value) {
                     // current scene light
                     int color_value_x = (points_tx[0].x * bary.x + points_tx[1].x * bary.y + points_tx[2].x * bary.z) * texture.get_width();
                     int color_value_y = (points_tx[0].y * bary.x + points_tx[1].y * bary.y + points_tx[2].y * bary.z) * texture.get_height();
@@ -230,7 +225,7 @@ void fillTriangle(TGAImage &image, float* zbuffer, TGAImage &texture, VectFloat*
 /*
  * Method used to draw the borders of a tirangle
  */
-void drawTriangle(VectInt p1, VectInt p2, VectInt p3, TGAImage &image, TGAColor color) {
+void draw_triangle(VectInt p1, VectInt p2, VectInt p3, TGAImage &image, TGAColor color) {
     line(p1.x, p1.y, p2.x, p2.y, image, color);
     line(p2.x, p2.y, p3.x, p3.y, image, color);
     line(p3.x, p3.y, p1.x, p1.y, image, color);
@@ -249,7 +244,6 @@ void render(TGAImage &image, std::vector<int> facets_points, std::vector<VectFlo
         zbuffer[j] = std::numeric_limits<float>::lowest();
     }
     for (int i = 3 ; i < facets_points.size() - 3 ; i += 3) {
-
         VectFloat curr_points[3];
         curr_points[0] = points.at(facets_points.at(i - 3) - 1);
         curr_points[1] = points.at(facets_points.at(i - 2) - 1);
@@ -265,15 +259,8 @@ void render(TGAImage &image, std::vector<int> facets_points, std::vector<VectFlo
         curr_vn[1] = points_nm.at(facets_nm.at(i - 2) - 1);
         curr_vn[2] = points_nm.at(facets_nm.at(i - 1) - 1);
 
-        // draw a line from x,y of v1 to v2, of v2 to v3 and of v3 to v1 ; uncomment to draw simple triangles
-        // drawTriangle(p1, p2, p3, image, white);
 
-        // generate a random color ; uncomment to draw filled colored triangles
-        // TGAColor randomColor(std::rand()%255,std::rand()%255,std::rand()%255,255);
-        // fill a triangle using the vertices and the random color
-        // fillTriangle(p1, p2, p3,image, randomColor);
-        fillTriangle(image, zbuffer, texture, curr_points, curr_tx, curr_vn, nmap);
-
+        fill_triangle(image, zbuffer, texture, curr_points, curr_tx, curr_vn, nmap);
     }
 }
 
