@@ -157,9 +157,7 @@ float intensity_flat_shading(std::array<VectFloat, 3> points) {
     VectFloat AB(points[1].x - points[0].x, points[1].y - points[0].y, points[1].z - points[0].z);
     VectFloat AC(points[2].x - points[0].x, points[2].y - points[0].y, points[2].z - points[0].z);
     VectFloat norm = crossProduct(AB,AC);
-    //std::cout << "Norm vector before : x" << norm.x << ", y" << norm.y << ", z" << norm.z << std::endl; // debug normalization
     norm.normalize();
-    //std::cout << "Norm vector : x" << norm.x << ", y" << norm.y << ", z" << norm.z << std::endl; // debug normalization
     return std::max(0.f, dotProduct(norm, light));
 }
 
@@ -174,8 +172,7 @@ float intensity_gouraud_shading(VectFloat *points_vn, VectFloat barycenter) {
 float intensity_normal_mapping(VectInt col, TGAImage &nmap) {
     TGAColor val_nm = nmap.get(col.x,col.y);
     VectFloat val_nm_vct(val_nm[0]-130, val_nm[1]-130, val_nm[2]-130); // subtract value to reduce light output and enhance details, otherwise too much light
-    // val_nm_vct.print();
-    val_nm_vct.normalize(); // from -130 125 to -1 1
+    val_nm_vct.normalize();
     VectFloat n = (uniform_MIT * val_nm_vct.getMatrix()).getVect(0);
     n.normalize();
     return std::max(0.f, (dotProduct(final_light,n)));
@@ -199,39 +196,35 @@ void fillTriangle(TGAImage &image, float* zbuffer, TGAImage &texture, VectFloat*
     VectInt bottomLeft = getCorner(p1,p2,p3, false);
     VectInt topRight = getCorner(p1,p2,p3,true);
 
-
     // iterating over the square
-        #pragma omp parallel for
-        for(int x = bottomLeft.x ; x <= topRight.x ; x++) {
-            for(int y = bottomLeft.y ; y <= topRight.y ; y++) {
-
-                // get the current VectInt
-                VectInt current;
-                current.x = x;
-                current.y = y;
+#pragma omp parallel for
+    for(int x = bottomLeft.x ; x <= topRight.x ; x++) {
+        for(int y = bottomLeft.y ; y <= topRight.y ; y++) {
+            // get the current VectInt
+            VectInt current;
+            current.x = x;
+            current.y = y;
+            int z_index = current.x + current.y * height;
+            if(z_index < width * height && z_index >= 0) { // check boundaries for z index array
                 VectFloat bary = barycentric(p1,p2,p3,current);
-
-
                 float z_value = p1.z * bary.x + p2.z * bary.y + p3.z * bary.z;
-                int z_index = current.x + current.y * height;
-                if(z_index < width * height && z_index >= 0) { // check boundaries for z index array
-                    //if the current VectInt is in the triangle, and zvalue is above current stored zbuffer draw it
-                    if(VectIntInTriangle(p1,p2,p3,current) && zbuffer[z_index] < z_value) {
-                        // current scene light
-                        int color_value_x = (points_tx[0].x * bary.x + points_tx[1].x * bary.y + points_tx[2].x * bary.z) * texture.get_width();
-                        int color_value_y = (points_tx[0].y * bary.x + points_tx[1].y * bary.y + points_tx[2].y * bary.z) * texture.get_height();
-                        VectInt col(color_value_x , color_value_y, 0);
-                        //float intensity = intensity_flat_shading({VectFloat(p1f),VectFloat(p2f),VectFloat(p3f)}); // flat
-                        //float intensity = intensity_gouraud_shading(points_vn, bary); // gouraud
-                        float intensity = intensity_normal_mapping(col, nmap);
-                        TGAColor color = texture.get(col.x, col.y) * (intensity);
-                        TGAColor debug_light = TGAColor(255,255,255) * intensity;
-                        zbuffer[z_index] = z_value;
-                        image.set(x,y,color);
-                    }
+                //if the current VectInt is in the triangle, and zvalue is above current stored zbuffer draw it
+                if(VectIntInTriangle(p1,p2,p3,current) && zbuffer[z_index] < z_value) {
+                    // current scene light
+                    int color_value_x = (points_tx[0].x * bary.x + points_tx[1].x * bary.y + points_tx[2].x * bary.z) * texture.get_width();
+                    int color_value_y = (points_tx[0].y * bary.x + points_tx[1].y * bary.y + points_tx[2].y * bary.z) * texture.get_height();
+                    VectInt col(color_value_x , color_value_y, 0);
+                    //float intensity = intensity_flat_shading({VectFloat(p1f),VectFloat(p2f),VectFloat(p3f)}); // flat
+                    //float intensity = intensity_gouraud_shading(points_vn, bary); // gouraud
+                    float intensity = intensity_normal_mapping(col, nmap);
+                    TGAColor color = texture.get(col.x, col.y) * (intensity);
+                    TGAColor debug_light = TGAColor(255,255,255) * intensity;
+                    zbuffer[z_index] = z_value;
+                    image.set(x,y,color);
                 }
             }
         }
+    }
 }
 
 /*
@@ -391,7 +384,7 @@ int main() {
 
     TGAImage image(width, height, TGAImage::RGB);
     read_obj(image);
-    
+
     //image.flip_vertically();
     image.write_tga_file("framebuffer.tga");
     return 0;
